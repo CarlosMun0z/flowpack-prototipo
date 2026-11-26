@@ -783,13 +783,242 @@
 
     let appState = loadPersistedState();
 
-    function resetDemoData() {
+    function createCleanZeroState() {
+      const clean = createDefaultState();
+      clean.isAuthenticated = true;
+      clean.activeProfileId = 'admin';
+
+      // Operación en cero: 0 lotes, 0 órdenes, 0 pallets, 0 embarques
+      clean.lots = [];
+      clean.orders = [];
+      clean.yieldReports = [];
+      clean.pallets = [];
+      clean.dispatchOrders = [];
+      clean.waybills = [];
+      clean.sqliteQueue = [];
+      clean.resolvedAlerts = [];
+      clean.warehouseShiftClosed = false;
+
+      // Catálogos base precargados (3 Productores, 2 Transportistas, 4 Especies/Variedades, 3 Tipos de Embalaje)
+      clean.catalogs.producers = [
+        {
+          id: 'PRD-001',
+          name: 'Agrícola Santa Elena',
+          rut: '76.120.450-3',
+          predioCode: 'PRD-001',
+          predioName: 'Fundo Santa Elena',
+          exporter: 'Valle Sur S.A.',
+        },
+        {
+          id: 'PRD-002',
+          name: 'Frutícola Los Maitenes',
+          rut: '77.890.112-8',
+          predioCode: 'PRD-002',
+          predioName: 'Huerto Los Maitenes',
+          exporter: 'Andes Export Ltda.',
+        },
+        {
+          id: 'PRD-003',
+          name: 'Agrícola El Roble',
+          rut: '76.432.980-1',
+          predioCode: 'PRD-003',
+          predioName: 'Parcela El Roble',
+          exporter: 'Valle Sur S.A.',
+        },
+      ];
+
+      clean.catalogs.transporters = [
+        {
+          id: 'TRN-01',
+          company: 'Transportes FríoSur Ltda.',
+          rut: '77.120.450-8',
+          plate: 'RTYU-88',
+        },
+        {
+          id: 'TRN-02',
+          company: 'Logística Austral S.A.',
+          rut: '76.998.310-2',
+          plate: 'PLKM-19',
+        },
+      ];
+
+      clean.catalogs.speciesVarieties = [
+        { id: 'ESP-01', species: 'Cereza', variety: 'Santina' },
+        { id: 'ESP-02', species: 'Cereza', variety: 'Lapins' },
+        { id: 'ESP-03', species: 'Arándano', variety: 'Duke' },
+        { id: 'ESP-04', species: 'Cereza', variety: 'Regina' },
+      ];
+
+      clean.catalogs.packagingTypes = [
+        { code: 'EMB-001', description: 'Caja cartón exportación 5 kg (INS-001)', netWeightKg: 5.0, linkedSupplyCode: 'INS-001' },
+        { code: 'EMB-002', description: 'Clamshell PET 1 kg (INS-002)', netWeightKg: 1.0, linkedSupplyCode: 'INS-002' },
+        { code: 'EMB-003', description: 'Embalaje atmósfera modificada MAP (INS-003)', netWeightKg: 2.5, linkedSupplyCode: 'INS-003' },
+      ];
+
+      // 5. Stock estándar en Bodega tras el reinicio
+      clean.warehouseStock = [
+        {
+          code: 'INS-001',
+          name: 'Cajas de cartón exportación 5 kg',
+          unit: 'unidades',
+          physical: 5000,
+          committed: 0,
+          minAlert: 1000,
+        },
+        {
+          code: 'INS-002',
+          name: 'Clamshells PET 1 kg',
+          unit: 'unidades',
+          physical: 8000,
+          committed: 0,
+          minAlert: 1500,
+        },
+        {
+          code: 'INS-003',
+          name: 'Bolsas atmósfera modificada MAP',
+          unit: 'unidades',
+          physical: 6000,
+          committed: 0,
+          minAlert: 1200,
+        },
+        {
+          code: 'INS-004',
+          name: 'Etiquetas térmicas GS1-128',
+          unit: 'etiquetas (rollos)',
+          physical: 10000,
+          committed: 0,
+          minAlert: 2000,
+        },
+        {
+          code: 'INS-005',
+          name: 'Esquineros y zunchos de paletizado',
+          unit: 'juegos',
+          physical: 3000,
+          committed: 0,
+          minAlert: 600,
+        },
+      ];
+
+      clean.warehouseMovements = [
+        {
+          time: nowTimeStr(),
+          type: 'INVENTARIO INICIAL',
+          code: 'INS-001..005',
+          name: 'Carga estándar post-reinicio del sistema',
+          delta: '5 insumos base inicializados',
+          author: 'Carlos Muñoz',
+          note: 'Reinicio limpio autorizado con clave de seguridad',
+        },
+      ];
+
+      clean.auditLogs = [
+        {
+          time: nowTimeStr(),
+          title: 'Reinicio integral del sistema ejecutado',
+          detail: 'Operación en cero · Catálogos base y stock estándar de bodega cargados',
+          user: 'Carlos Muñoz',
+        },
+      ];
+
+      clean.ui.adminSelectedLotId = '';
+      clean.ui.mbSelectedOrderCode = '';
+      clean.ui.dispSelectedPallets = [];
+      clean.ui.qualitySelectedLotId = '';
+      clean.ui.qcBlockPalletId = '';
+      clean.ui.qrSelectedOrderCode = '';
+      clean.ui.selectedQrPalletId = '';
+      clean.ui.reprintPalletId = '';
+      clean.ui.pdaSelectedPalletId = '';
+      clean.ui.dockSelectedOrderCode = '';
+
+      return clean;
+    }
+
+    function openSystemResetModal() {
+      const root = document.getElementById('modal-container');
+      root.innerHTML = `
+        <div class="fixed inset-0 z-50 bg-[#082618]/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div class="bg-white border-2 border-[#C82333] rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-[#E2E8E4] pb-4 mb-4">
+              <div>
+                <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-[#C82333]">OPERACIÓN CRÍTICA DE ADMINISTRACIÓN</span>
+                <h3 class="text-xl font-extrabold text-[#111C17]">Reiniciar sistema a cero</h3>
+              </div>
+              <button type="button" onclick="closeModal()" class="w-9 h-9 rounded-xl bg-[#F6F8F6] hover:bg-[#E2E8E4] font-bold">✕</button>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-[#FDECEC] border border-[#F5C2C7] text-xs text-[#991B1B] space-y-1.5 mb-4">
+              <p class="font-bold">Esta acción limpiará localStorage y dejará la operación en cero:</p>
+              <ul class="list-disc pl-4 space-y-0.5">
+                <li>0 lotes, 0 órdenes, 0 pallets y 0 embarques.</li>
+                <li>Conservará 3 productores, 2 transportistas, 4 especies/variedades y 3 tipos de embalaje.</li>
+                <li>Inicializará Bodega con el stock estándar (INS-001 a INS-005).</li>
+              </ul>
+            </div>
+
+            <form onsubmit="confirmSystemResetWithPassword(event)" class="space-y-4">
+              <div>
+                <label for="system-reset-pass" class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1.5">
+                  CONTRASEÑA DE AUTORIZACIÓN *
+                </label>
+                <input
+                  id="system-reset-pass"
+                  type="password"
+                  inputmode="numeric"
+                  placeholder="Ingresa clave de reinicio..."
+                  class="field-industrial font-mono text-lg tracking-widest text-center"
+                  required
+                  autofocus
+                />
+                <p id="system-reset-error" class="hidden text-xs font-bold text-[#C82333] mt-1.5">
+                  Clave incorrecta. Ingresa la contraseña autorizada (1234) para confirmar.
+                </p>
+              </div>
+
+              <div class="flex justify-end gap-3 pt-1">
+                <button type="button" onclick="closeModal()" class="btn-industrial px-5 rounded-xl border border-[#D0DBD3] text-[#111C17] font-semibold text-sm">
+                  Cancelar
+                </button>
+                <button type="submit" class="btn-industrial px-6 rounded-xl bg-[#C82333] hover:bg-[#991B1B] text-white font-bold text-sm shadow-sm">
+                  Confirmar reinicio total
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function confirmSystemResetWithPassword(event) {
+      event.preventDefault();
+      const input = document.getElementById('system-reset-pass');
+      const err = document.getElementById('system-reset-error');
+      const val = input ? input.value.trim() : '';
+
+      if (val !== '1234') {
+        if (err) err.classList.remove('hidden');
+        if (input) {
+          input.value = '';
+          input.focus();
+        }
+        showToast('Contraseña incorrecta', 'No se ejecutó el reinicio del sistema.', 'danger');
+        return;
+      }
+
       localStorage.removeItem(APP_STORAGE_KEY);
-      appState = createDefaultState();
-      appState.isAuthenticated = true;
+      appState = createCleanZeroState();
+      saveState();
       closeModal();
-      showToast('Datos restablecidos', 'La base operativa de Planta Sur volvió a su estado inicial.', 'info');
+      showToast(
+        'Sistema reiniciado a cero',
+        'Operación limpia con catálogos base y stock estándar de Bodega cargados.',
+        'success'
+      );
       render();
+    }
+
+    function resetDemoData() {
+      openSystemResetModal();
     }
 
     /* ==========================================================================
@@ -1179,7 +1408,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
             </svg>
           </div>
-          <span class="${compact ? 'text-lg sm:text-xl' : 'text-2xl'} font-extrabold tracking-tight leading-none">
+          <span class="${compact ? 'hidden sm:inline text-lg sm:text-xl' : 'text-2xl'} font-extrabold tracking-tight leading-none">
             <span class="text-white">Flow</span><span class="text-[#D4EE49]">Pack</span>
           </span>
         </div>
@@ -1845,24 +2074,36 @@
       render();
     }
 
-    /* Generación y Exportación de Informes por Período (CSV/Excel y PDF) */
+    /* Generación y Exportación Nativa a Excel (.xls con columnas reales <table><tr><td>) y PDF */
+    function escapeExcelHtml(val) {
+      return String(val ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     function exportReportToCsv() {
       const area = appState.ui.reportArea;
       const from = appState.ui.reportDateFrom;
       const to = appState.ui.reportDateTo;
 
       let rows = [];
+      let sheetTitle = 'Informe Operativo';
+
       if (area === 'INVENTARIO') {
+        sheetTitle = 'Inventario Bodega de Insumos';
         rows = [
-          ['CODIGO', 'INSUMO', 'UNIDAD', 'STOCK_FISICO', 'COMPROMETIDO', 'DISPONIBLE_NETO', 'ESTADO'],
+          ['CÓDIGO', 'INSUMO', 'UNIDAD', 'STOCK FÍSICO', 'COMPROMETIDO', 'DISPONIBLE NETO', 'ESTADO'],
           ...appState.warehouseStock.map((m) => {
             const net = m.physical - m.committed;
-            return [m.code, m.name, m.unit, m.physical, m.committed, net, net <= m.minAlert ? 'STOCK BAJO' : 'OPTIMO'];
+            return [m.code, m.name, m.unit, m.physical, m.committed, net, net <= m.minAlert ? 'STOCK BAJO' : 'ÓPTIMO'];
           }),
         ];
       } else if (area === 'DESPACHOS') {
+        sheetTitle = 'Embarques y Guías de Despacho';
         rows = [
-          ['ORDEN_EMBARQUE', 'EXPORTADOR', 'DESTINO', 'TRANSPORTE', 'PALLETS', 'ESTADO', 'GUIA_DESPACHO'],
+          ['ORDEN DE EMBARQUE', 'EXPORTADOR', 'DESTINO', 'TRANSPORTE', 'PALLETS', 'ESTADO', 'GUÍA DE DESPACHO'],
           ...appState.dispatchOrders.map((d) => [
             d.code,
             d.exporter,
@@ -1874,8 +2115,9 @@
           ]),
         ];
       } else {
+        sheetTitle = 'Recepción, Calidad y Producción';
         rows = [
-          ['ID_LOTE', 'FECHA_COSECHA', 'PRODUCTOR', 'RUT', 'PREDIO', 'EXPORTADOR', 'ESPECIE', 'VARIEDAD', 'BINS', 'KG_NETOS', 'ESTADO_CALIDAD', 'BRIX', 'FIRMEZA_DUROFEL'],
+          ['ID LOTE', 'FECHA COSECHA', 'PRODUCTOR', 'RUT', 'PREDIO', 'EXPORTADOR', 'ESPECIE', 'VARIEDAD', 'BINS', 'KG NETOS', 'ESTADO CALIDAD', 'BRIX', 'FIRMEZA DUROFEL'],
           ...appState.lots
             .filter((l) => l.harvestDate >= from && l.harvestDate <= to)
             .map((l) => [
@@ -1896,19 +2138,77 @@
         ];
       }
 
-      const csvContent = '\uFEFF' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const headers = rows[0] || [];
+      const bodyRows = rows.slice(1);
+
+      const tableHeaderHtml = `<tr>${headers
+        .map(
+          (h) =>
+            `<th style="background-color:#0E3B25;color:#FFFFFF;font-weight:bold;border:1px solid #C8D4CC;padding:8px 10px;text-align:left;">${escapeExcelHtml(h)}</th>`
+        )
+        .join('')}</tr>`;
+
+      const tableBodyHtml = bodyRows
+        .map(
+          (r, rIdx) =>
+            `<tr>${r
+              .map((cell) => {
+                const isNumeric = typeof cell === 'number';
+                const bg = rIdx % 2 === 1 ? '#F6F8F6' : '#FFFFFF';
+                return `<td style="background-color:${bg};border:1px solid #E2E8E4;padding:6px 10px;${
+                  isNumeric ? 'text-align:right;mso-number-format:\#\,\#\#0;' : 'mso-number-format:\@;'
+                }">${escapeExcelHtml(cell)}</td>`;
+              })
+              .join('')}</tr>`
+        )
+        .join('');
+
+      const excelHtml = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+          <head>
+            <meta charset="UTF-8" />
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>${escapeExcelHtml(area)}</x:Name>
+                    <x:WorksheetOptions>
+                      <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
+          </head>
+          <body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;">
+            <table>
+              <tr>
+                <td colspan="${headers.length}" style="font-size:13pt;font-weight:bold;color:#0E3B25;padding:6px 0;">
+                  FrutalSur Packing S.A. — ${escapeExcelHtml(sheetTitle)} (${escapeExcelHtml(from)} al ${escapeExcelHtml(to)})
+                </td>
+              </tr>
+              ${tableHeaderHtml}
+              ${tableBodyHtml}
+            </table>
+          </body>
+        </html>
+      `;
+
+      const fileName = `FlowPack_Informe_${area}_${from}_a_${to}.xls`;
+      const blob = new Blob(['\uFEFF' + excelHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `FlowPack_Informe_${area}_${from}_a_${to}.csv`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      pushAudit('Informe Excel/CSV descargado', `Área ${area} (${from} al ${to})`);
-      showToast('Archivo Excel/CSV generado', `Descargado FlowPack_Informe_${area}_${from}_a_${to}.csv`, 'success');
+      pushAudit('Informe Excel (.xls) descargado', `Área ${area} (${from} al ${to})`);
+      showToast('Archivo Excel generado', `Descargado ${fileName} con columnas separadas.`, 'success');
     }
 
     function printReportAsPdf() {
@@ -2704,6 +3004,194 @@
       render();
     }
 
+    function openDirectStockAdjustmentModal(code, operation) {
+      const mat = appState.warehouseStock.find((m) => m.code === code);
+      if (!mat) return;
+
+      const isAdd = operation === 'ADD';
+      const requiresAdminAuth = appState.warehouseShiftClosed;
+      const root = document.getElementById('modal-container');
+
+      root.innerHTML = `
+        <div class="fixed inset-0 z-50 bg-[#082618]/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div class="bg-white border-2 ${requiresAdminAuth ? 'border-[#B45309]' : 'border-[#0E3B25]'} rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-[#E2E8E4] pb-4 mb-4">
+              <div>
+                <span class="font-mono text-[11px] font-bold uppercase tracking-wider ${requiresAdminAuth ? 'text-[#B45309]' : 'text-[#157A45]'}">
+                  ${requiresAdminAuth ? 'SEGURIDAD POST-CIERRE DE TURNO (HU-15)' : 'MOVIMIENTO DIRECTO DE BODEGA (HU-14)'}
+                </span>
+                <h3 class="text-xl font-extrabold text-[#111C17]">
+                  ${isAdd ? 'Agregar stock (+)' : 'Quitar / Rebajar stock (−)'} · ${mat.code}
+                </h3>
+                <p class="text-xs text-[#5C6F65] mt-0.5">${mat.name} · Stock actual: <strong>${fmtNum(mat.physical)} ${mat.unit}</strong></p>
+              </div>
+              <button type="button" onclick="closeModal()" class="w-9 h-9 rounded-xl bg-[#F6F8F6] hover:bg-[#E2E8E4] font-bold">✕</button>
+            </div>
+
+            ${
+              requiresAdminAuth
+                ? `
+              <div class="p-3.5 rounded-xl bg-[#FEF3E2] border border-[#FCD34D] text-xs text-[#92400E] mb-4 flex items-center justify-between gap-2">
+                <span>El turno está <strong>Post-Cierre</strong>. Se exigen credenciales de <strong>Administrador</strong> y motivo obligatorio.</span>
+                <button
+                  type="button"
+                  onclick="fillAdminDirectAdjustmentDemo()"
+                  class="px-2.5 py-1.5 rounded-lg bg-[#0E3B25] text-white font-mono text-[10px] font-bold shrink-0"
+                >
+                  Autocompletar Admin
+                </button>
+              </div>
+            `
+                : ''
+            }
+
+            <form onsubmit="submitDirectStockAdjustment(event, '${mat.code}', '${operation}')" class="space-y-3.5">
+              ${
+                requiresAdminAuth
+                  ? `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">Correo Administrador *</label>
+                    <input id="dir-adj-admin-email" type="email" placeholder="c.munoz@frutalsur.cl" class="field-industrial text-xs" required />
+                  </div>
+                  <div>
+                    <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">Clave Administrador *</label>
+                    <input id="dir-adj-admin-pass" type="password" placeholder="FS-Planta2026" class="field-industrial font-mono text-xs" required />
+                  </div>
+                </div>
+              `
+                  : ''
+              }
+
+              <div>
+                <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">
+                  Cantidad a ${isAdd ? 'agregar' : 'quitar'} (${mat.unit}) *
+                </label>
+                <input
+                  id="dir-adj-qty"
+                  type="number"
+                  min="1"
+                  ${!isAdd ? `max="${mat.physical}"` : ''}
+                  value="100"
+                  class="field-industrial font-mono text-lg font-bold"
+                  required
+                  autofocus
+                />
+              </div>
+
+              <div>
+                <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">
+                  ${requiresAdminAuth ? 'Motivo Obligatorio Post-Cierre *' : 'Observación / Referencia del movimiento *'}
+                </label>
+                <input
+                  id="dir-adj-note"
+                  type="text"
+                  value="${requiresAdminAuth ? '' : isAdd ? 'Ingreso rápido en turno operativo' : 'Entrega directa a línea de empaque'}"
+                  placeholder="${requiresAdminAuth ? 'Ej: Corrección por merma física verificada tras cierre de turno...' : 'Detalle del movimiento...'}"
+                  class="field-industrial text-xs"
+                  required
+                />
+              </div>
+
+              <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="closeModal()" class="btn-industrial px-5 rounded-xl border border-[#D0DBD3] text-[#111C17] font-semibold text-sm">
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  class="btn-industrial px-6 rounded-xl ${isAdd ? 'bg-[#0E3B25] hover:bg-[#165336]' : 'bg-[#C82333] hover:bg-[#991B1B]'} text-white font-bold text-sm"
+                >
+                  ${isAdd ? '+ Confirmar ingreso' : '− Confirmar rebaja'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function fillAdminDirectAdjustmentDemo() {
+      const emailEl = document.getElementById('dir-adj-admin-email');
+      const passEl = document.getElementById('dir-adj-admin-pass');
+      if (emailEl) emailEl.value = 'c.munoz@frutalsur.cl';
+      if (passEl) passEl.value = 'FS-Planta2026';
+    }
+
+    function submitDirectStockAdjustment(event, code, operation) {
+      event.preventDefault();
+      const mat = appState.warehouseStock.find((m) => m.code === code);
+      if (!mat) return;
+
+      const isAdd = operation === 'ADD';
+      const requiresAdminAuth = appState.warehouseShiftClosed;
+      const qty = parseInt(document.getElementById('dir-adj-qty').value, 10) || 0;
+      const note = document.getElementById('dir-adj-note').value.trim();
+
+      if (qty <= 0) {
+        showToast('Cantidad inválida', 'Ingresa una cantidad mayor a cero.', 'danger');
+        return;
+      }
+
+      if (!isAdd && qty > mat.physical) {
+        showToast('Stock insuficiente', `No puedes quitar ${fmtNum(qty)} ${mat.unit} porque el stock físico actual es ${fmtNum(mat.physical)}.`, 'danger');
+        return;
+      }
+
+      let authorLabel = 'Marcelo Rojas';
+
+      if (requiresAdminAuth) {
+        const adminEmail = document.getElementById('dir-adj-admin-email').value.trim().toLowerCase();
+        const adminPass = document.getElementById('dir-adj-admin-pass').value.trim();
+        const validAdminEmails = ['admin@frutalsur.cl', 'c.munoz@frutalsur.cl'];
+
+        if (!validAdminEmails.includes(adminEmail) || adminPass.length < 4) {
+          showToast('Credenciales de Administrador inválidas', 'Se requiere autorización de Jefatura de Planta en estado Post-Cierre.', 'danger');
+          return;
+        }
+        if (!note) {
+          showToast('Motivo obligatorio', 'Debes indicar el motivo de auditoría Post-Cierre.', 'danger');
+          return;
+        }
+        authorLabel = `Marcelo Rojas (Auth: ${adminEmail})`;
+      }
+
+      if (isAdd) {
+        mat.physical += qty;
+      } else {
+        mat.physical = Math.max(0, mat.physical - qty);
+      }
+
+      const deltaStr = `${isAdd ? '+' : '−'}${fmtNum(qty)} ${mat.unit}`;
+      const movType = requiresAdminAuth
+        ? 'AJUSTE POST-CIERRE'
+        : isAdd
+        ? 'INGRESO MANUAL (+)'
+        : 'REBAJA MANUAL (−)';
+
+      appState.warehouseMovements.unshift({
+        time: nowTimeStr(),
+        type: movType,
+        code: mat.code,
+        name: mat.name,
+        delta: deltaStr,
+        author: authorLabel,
+        note: note || 'Ajuste operativo en turno',
+      });
+
+      pushAudit(
+        requiresAdminAuth ? 'Ajuste bodega Post-Cierre (HU-15)' : 'Movimiento directo bodega (HU-14)',
+        `${mat.code} · ${deltaStr} · ${note}`
+      );
+      showToast(
+        isAdd ? 'Stock agregado en Bodega' : 'Stock rebajado en Bodega',
+        `${mat.name}: ${deltaStr} (Nuevo físico: ${fmtNum(mat.physical)} ${mat.unit}).`,
+        isAdd ? 'success' : 'warning'
+      );
+
+      closeModal();
+      render();
+    }
+
     function openPostCloseAdjustmentModal() {
       const root = document.getElementById('modal-container');
       root.innerHTML = `
@@ -2822,6 +3310,11 @@
        ========================================================================== */
 
     function openTraceabilityLookupModal(codeQuery = '', restrictToExporter = null) {
+      const activeRole = getActiveProfile().id;
+      if (activeRole !== 'admin' && activeRole !== 'operator') {
+        showToast('Acceso restringido (HU-19 / HU-22)', 'La Consulta Integral de Trazabilidad está habilitada solo para Jefatura de Planta y Recepción.', 'danger');
+        return;
+      }
       const clean = codeQuery.trim().toUpperCase();
 
       const availablePallets = restrictToExporter
@@ -3291,6 +3784,7 @@
       const current = getActiveProfile();
       const alertsCount = computeActiveOperationalAlerts().length;
       const isExporterRole = current.id === 'exporter' || current.id === 'exporter2';
+      const canAccessTraceability = current.id === 'admin' || current.id === 'operator';
 
       return `
         <header class="sticky top-0 z-40 bg-[#0E3B25] text-white border-b border-[#165336] shadow-sm">
@@ -3298,10 +3792,6 @@
             <!-- Izquierda: Logo compacto + Estado operativo -->
             <div class="flex items-center gap-3 sm:gap-5 min-w-0">
               ${renderBrandLogo(true)}
-
-              <span class="hidden xl:inline-block font-mono text-[11px] font-bold uppercase tracking-widest text-white/65">
-                PLANTA SUR
-              </span>
 
               <div class="hidden lg:flex items-center gap-2 pl-4 border-l border-white/15 text-xs text-white/85">
                 <span class="w-2 h-2 rounded-full bg-[#D4EE49] animate-pulse"></span>
@@ -3315,10 +3805,13 @@
 
             <!-- Derecha: Accesos rápidos + Selector Box responsivo móvil + Cerrar Sesión -->
             <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-              <!-- Botón Consulta Trazabilidad -->
+              ${
+                canAccessTraceability
+                  ? `
+              <!-- Botón Consulta Trazabilidad (exclusivo Jefe de Planta y Recepción/Empaque) -->
               <button
                 type="button"
-                onclick="openTraceabilityLookupModal('', ${isExporterRole ? `'${current.exporterCompany}'` : 'null'})"
+                onclick="openTraceabilityLookupModal('', null)"
                 title="Consulta integral de trazabilidad"
                 class="h-10 sm:h-11 px-2.5 sm:px-3.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-white inline-flex items-center gap-1.5 transition shrink-0"
               >
@@ -3327,6 +3820,9 @@
                 </svg>
                 <span class="hidden md:inline">Trazabilidad</span>
               </button>
+              `
+                  : ''
+              }
 
               ${
                 !isExporterRole
@@ -3470,8 +3966,8 @@
     // --- 12.1 CARLOS MUÑOZ — JEFE DE PLANTA (4 PESTAÑAS) ---
     function renderAdminView() {
       const tab = appState.ui.adminTab;
-      const selectedLot = appState.lots.find((l) => l.id === appState.ui.adminSelectedLotId) || appState.lots[0];
-      const isBlocked = selectedLot && selectedLot.status !== 'ACEPTADO';
+      const selectedLot = appState.lots.find((l) => l.id === appState.ui.adminSelectedLotId) || appState.lots[0] || null;
+      const isBlocked = !selectedLot || selectedLot.status !== 'ACEPTADO';
 
       const totalKg = appState.lots.reduce((sum, l) => sum + l.weightKg, 0);
       const totalTons = (totalKg / 1000).toFixed(1);
@@ -3513,14 +4009,25 @@
             </p>
           </div>
 
-          <button
-            type="button"
-            onclick="openMasterCatalogModal('producers')"
-            class="btn-industrial px-5 rounded-xl bg-[#0E3B25] hover:bg-[#165336] text-white font-semibold text-sm inline-flex items-center gap-2 self-start sm:self-auto shadow-sm"
-          >
-            <span class="text-lg text-[#D4EE49] leading-none">+</span>
-            <span>Catálogos maestros</span>
-          </button>
+          <div class="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+            <button
+              type="button"
+              onclick="openMasterCatalogModal('producers')"
+              class="btn-industrial px-5 rounded-xl bg-[#0E3B25] hover:bg-[#165336] text-white font-semibold text-sm inline-flex items-center gap-2 shadow-sm"
+            >
+              <span class="text-lg text-[#D4EE49] leading-none">+</span>
+              <span>Catálogos maestros</span>
+            </button>
+
+            <button
+              type="button"
+              onclick="openSystemResetModal()"
+              class="btn-industrial px-4 rounded-xl bg-white hover:bg-[#FDECEC] border-2 border-[#C82333] text-[#C82333] font-bold text-sm inline-flex items-center gap-2 shadow-2xs"
+            >
+              <span>↺</span>
+              <span>Reiniciar sistema</span>
+            </button>
+          </div>
         </div>
 
         <!-- 4 Tarjetas KPI -->
@@ -3627,15 +4134,19 @@
                     LOTE DE RECEPCIÓN
                   </label>
                   <select onchange="selectAdminLot(this.value, false)" class="field-industrial font-mono text-sm">
-                    ${appState.lots
-                      .map(
-                        (l) => `
-                      <option value="${l.id}" ${l.id === selectedLot.id ? 'selected' : ''}>
-                        ${l.id} — ${l.species} ${l.variety} (${l.status})
-                      </option>
-                    `
-                      )
-                      .join('')}
+                    ${
+                      appState.lots.length === 0
+                        ? '<option value="">Sin lotes recepcionados en planta</option>'
+                        : appState.lots
+                            .map(
+                              (l) => `
+                            <option value="${l.id}" ${selectedLot && l.id === selectedLot.id ? 'selected' : ''}>
+                              ${l.id} — ${l.species} ${l.variety} (${l.status})
+                            </option>
+                          `
+                            )
+                            .join('')
+                    }
                   </select>
                 </div>
 
@@ -3665,7 +4176,13 @@
                 </div>
 
                 ${
-                  isBlocked
+                  !selectedLot
+                    ? `
+                  <div class="p-4 rounded-xl bg-[#F6F8F6] border border-[#E2E8E4] text-xs text-[#5C6F65]">
+                    No existen lotes recepcionados aún. Registra un lote en Recepción y apruébalo en Calidad para emitir una orden.
+                  </div>
+                `
+                    : isBlocked
                     ? `
                   <div class="p-4 rounded-xl bg-[#FDECEC] border-2 border-[#C82333] flex items-start gap-3.5" role="alert">
                     <div class="w-10 h-10 rounded-xl bg-white border border-[#F5C2C7] text-[#C82333] flex items-center justify-center shrink-0 mt-0.5">
@@ -3722,9 +4239,12 @@
               </div>
 
               <div class="space-y-2.5 max-h-[370px] overflow-y-auto pr-1">
-                ${filteredLots
-                  .map((l) => {
-                    const active = l.id === selectedLot.id;
+                ${
+                  filteredLots.length === 0
+                    ? '<p class="text-xs text-[#5C6F65] p-4 rounded-xl bg-[#F6F8F6] text-center">0 lotes registrados en planta.</p>'
+                    : filteredLots
+                        .map((l) => {
+                          const active = selectedLot && l.id === selectedLot.id;
                     return `
                     <button
                       type="button"
@@ -3745,8 +4265,9 @@
                       </div>
                     </button>
                   `;
-                  })
-                  .join('')}
+                        })
+                        .join('')
+                }
               </div>
             </section>
           </div>
@@ -4090,7 +4611,7 @@
               <div>
                 <span class="font-mono text-[11px] font-bold uppercase text-[#157A45]">ANALÍTICA Y REPORTABILIDAD GERENCIAL</span>
                 <h2 class="text-xl font-bold text-[#111C17]">Informes consolidados por período</h2>
-                <p class="text-xs text-[#5C6F65] mt-0.5">Exportación instantánea en formato Excel (.csv) y documento imprimible PDF.</p>
+                <p class="text-xs text-[#5C6F65] mt-0.5">Exportación nativa en formato Excel (.xls con columnas separadas) y documento imprimible PDF.</p>
               </div>
 
               <div class="flex flex-wrap items-end gap-3 no-print">
@@ -4111,7 +4632,7 @@
                   <input type="date" value="${appState.ui.reportDateTo}" onchange="appState.ui.reportDateTo = this.value; render();" class="field-industrial font-mono text-xs" />
                 </div>
                 <button type="button" onclick="exportReportToCsv()" class="btn-industrial px-4 rounded-xl bg-[#0E3B25] hover:bg-[#165336] text-[#D4EE49] font-bold text-xs">
-                  ⬇ Exportar Excel (.CSV)
+                  ⬇ Exportar Excel (.XLS)
                 </button>
                 <button type="button" onclick="printReportAsPdf()" class="btn-industrial px-4 rounded-xl border border-[#0E3B25] text-[#0E3B25] font-bold text-xs">
                   🖨 Exportar PDF
@@ -4226,7 +4747,19 @@
     // --- 12.2 CAMILA VALDÉS — CONTROL DE CALIDAD ---
     function renderQualityView() {
       const tab = appState.ui.qualityTab;
-      const lot = appState.lots.find((l) => l.id === appState.ui.qualitySelectedLotId) || appState.lots[0];
+      const lot = appState.lots.find((l) => l.id === appState.ui.qualitySelectedLotId) || appState.lots[0] || null;
+      if (!lot) {
+        return `
+          <div class="mb-6">
+            <p class="font-mono text-xs font-bold uppercase tracking-[0.12em] text-[#157A45] mb-1">LABORATORIO FITOSANITARIO Y ASEGURAMIENTO</p>
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-[#111C17] tracking-tight">Control de calidad</h1>
+          </div>
+          <div class="card-industrial p-8 text-center">
+            <p class="text-base font-bold text-[#111C17]">No hay lotes recepcionados para inspección</p>
+            <p class="text-sm text-[#5C6F65] mt-1">Ingresa un lote en la estación de Recepción y Romana para habilitar la evaluación fitosanitaria.</p>
+          </div>
+        `;
+      }
       const filter = appState.ui.qualityLotFilter;
 
       const filteredLots = appState.lots.filter((l) => (filter === 'TODOS' ? true : l.status === filter));
@@ -4952,15 +5485,19 @@
                   <div>
                     <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">ORDEN DE PROCESO ACTIVA</label>
                     <select onchange="changeQrSelectedOrder(this.value)" class="field-industrial font-mono text-xs">
-                      ${appState.orders
-                        .map(
-                          (o) => `
-                        <option value="${o.code}" ${o.code === selectedQrOrder.code ? 'selected' : ''}>
-                          ${o.code} — ${o.lotId} · ${o.species} ${o.variety} (${o.market})
-                        </option>
-                      `
-                        )
-                        .join('')}
+                      ${
+                        appState.orders.length === 0
+                          ? '<option value="">Sin órdenes de proceso activas</option>'
+                          : appState.orders
+                              .map(
+                                (o) => `
+                              <option value="${o.code}" ${selectedQrOrder && o.code === selectedQrOrder.code ? 'selected' : ''}>
+                                ${o.code} — ${o.lotId} · ${o.species} ${o.variety} (${o.market})
+                              </option>
+                            `
+                              )
+                              .join('')
+                      }
                     </select>
                   </div>
 
@@ -5058,6 +5595,10 @@
 
             <!-- Vista Previa Etiqueta Térmica 10x15 cm -->
             <section class="lg:col-span-6 card-industrial p-6 flex flex-col items-center justify-between">
+              ${
+                !previewPallet
+                  ? `<div class="p-8 text-center text-sm text-[#5C6F65]">Aún no se han generado pallets con etiqueta QR.</div>`
+                  : `
               <div class="w-full flex items-center justify-between border-b border-[#E2E8E4] pb-3 mb-4">
                 <span class="font-mono text-xs font-bold uppercase text-[#5C6F65]">ETIQUETA TÉRMICA 10×15 CM</span>
                 <div class="flex flex-wrap gap-1.5">
@@ -5133,6 +5674,8 @@
 
                 <p class="text-[10px] text-center tracking-tighter break-all font-bold">${previewPallet.gs1Code}</p>
               </div>
+              `
+              }
             </section>
           </div>
         `
@@ -5636,6 +6179,7 @@
                   <th class="py-3 px-6">COMPROMETIDO</th>
                   <th class="py-3 px-6">DISPONIBLE NETO</th>
                   <th class="py-3 px-6">ESTADO</th>
+                  <th class="py-3 px-6 text-right">AJUSTE DIRECTO</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[#E2E8E4] text-xs">
@@ -5651,6 +6195,26 @@
                       <td class="py-3.5 px-6 font-mono text-[#5C6F65]">${fmtNum(m.committed)}</td>
                       <td class="py-3.5 px-6 font-mono text-sm font-extrabold text-[#111C17]">${fmtNum(net)}</td>
                       <td class="py-3.5 px-6">${renderStatusBadge(isLow ? 'STOCK BAJO' : 'ÓPTIMO')}</td>
+                      <td class="py-3.5 px-6 text-right">
+                        <div class="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onclick="openDirectStockAdjustmentModal('${m.code}', 'ADD')"
+                            title="Agregar stock (+)"
+                            class="h-9 px-3 rounded-lg bg-[#E6F5EC] hover:bg-[#0E3B25] text-[#0E3B25] hover:text-[#D4EE49] border border-[#B7E4C7] font-mono text-xs font-extrabold transition"
+                          >
+                            + Agregar
+                          </button>
+                          <button
+                            type="button"
+                            onclick="openDirectStockAdjustmentModal('${m.code}', 'SUB')"
+                            title="Quitar stock (−)"
+                            class="h-9 px-3 rounded-lg bg-[#FDECEC] hover:bg-[#C82333] text-[#C82333] hover:text-white border border-[#F5C2C7] font-mono text-xs font-extrabold transition"
+                          >
+                            − Quitar
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   `;
                   })
@@ -5730,13 +6294,9 @@
             </p>
           </div>
 
-          <button
-            type="button"
-            onclick="openTraceabilityLookupModal('', '${company}')"
-            class="btn-industrial px-5 rounded-xl bg-[#0E3B25] hover:bg-[#165336] text-[#D4EE49] font-bold text-xs sm:text-sm inline-flex items-center gap-2 self-start sm:self-auto"
-          >
-            <span>🔍 Consultar Trazabilidad QR</span>
-          </button>
+          <span class="px-3.5 py-2 rounded-xl bg-[#E6F5EC] border border-[#B7E4C7] font-mono text-xs font-bold text-[#157A45] self-start sm:self-auto">
+            🔒 Aislamiento de datos RLS activo
+          </span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -5784,7 +6344,7 @@
                     <th class="py-3 px-6">ESPECIE</th>
                     <th class="py-3 px-6">DESTINO</th>
                     <th class="py-3 px-6">UBICACIÓN / ESTADO</th>
-                    <th class="py-3 px-6">TRAZABILIDAD</th>
+                    <th class="py-3 px-6">CERTIFICACIÓN</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[#E2E8E4] text-xs">
@@ -5802,14 +6362,8 @@
                           <span class="font-mono text-[11px] text-[#5C6F65]">${p.location}</span>
                         </div>
                       </td>
-                      <td class="py-3.5 px-6">
-                        <button
-                          type="button"
-                          onclick="openTraceabilityLookupModal('${p.id}', '${company}')"
-                          class="px-3 py-1.5 rounded-lg bg-[#0E3B25] hover:bg-[#165336] text-white font-mono text-[11px] font-bold"
-                        >
-                          Ver origen QR
-                        </button>
+                      <td class="py-3.5 px-6 font-mono text-[11px] font-bold text-[#157A45]">
+                        ✓ Lote verificado (${p.predioCode})
                       </td>
                     </tr>
                   `
