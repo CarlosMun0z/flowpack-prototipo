@@ -314,9 +314,9 @@
             { id: 'ESP-04', species: 'Cereza', variety: 'Regina' },
           ],
           packagingTypes: [
-            { code: 'EMB-001', description: 'Caja cartón 5 kg · Exportación', netWeightKg: 5.0 },
-            { code: 'EMB-002', description: 'Clamshell 1 kg · Mercado Asia', netWeightKg: 1.0 },
-            { code: 'EMB-003', description: 'Caja 2.5 kg · Aéreo', netWeightKg: 2.5 },
+            { code: 'EMB-001', description: 'Caja cartón 5 kg · Exportación', netWeightKg: 5.0, linkedSupplyCode: 'INS-001' },
+            { code: 'EMB-002', description: 'Clamshell 1 kg · Mercado Asia', netWeightKg: 1.0, linkedSupplyCode: 'INS-002' },
+            { code: 'EMB-003', description: 'Caja 2.5 kg · Aéreo', netWeightKg: 2.5, linkedSupplyCode: 'INS-001' },
           ],
           lines: ['Línea Óptica 01', 'Línea Óptica 02', 'Línea Manual 03'],
           markets: ['EE.UU.', 'China', 'Europa', 'Corea del Sur'],
@@ -1655,7 +1655,7 @@
         `;
       } else {
         tabBody = `
-          <form onsubmit="saveMasterPackaging(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 bg-[#F6F8F6] p-4 rounded-2xl border border-[#E2E8E4] mb-5 items-end">
+          <form onsubmit="saveMasterPackaging(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-[#F6F8F6] p-4 rounded-2xl border border-[#E2E8E4] mb-5 items-end">
             <div>
               <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">Código *</label>
               <input id="cat-emb-code" type="text" value="${nextEmbCode}" class="field-industrial font-mono" required />
@@ -1668,7 +1668,15 @@
               <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">Peso Neto / Caja (kg) *</label>
               <input id="cat-emb-weight" type="number" step="0.1" min="0.5" value="5.0" class="field-industrial font-mono" required />
             </div>
-            <div class="sm:col-span-3 flex justify-end">
+            <div>
+              <label class="block font-mono text-[11px] font-bold uppercase text-[#5C6F65] mb-1">Insumo Asociado en Bodega *</label>
+              <select id="cat-emb-supply" class="field-industrial text-xs">
+                ${appState.warehouseStock
+                  .map((m) => `<option value="${m.code}">${m.code} — ${m.name}</option>`)
+                  .join('')}
+              </select>
+            </div>
+            <div class="sm:col-span-2 flex justify-end">
               <button type="submit" class="btn-industrial px-6 rounded-xl bg-[#0E3B25] hover:bg-[#165336] text-white font-semibold text-sm">
                 Registrar tipo de embalaje
               </button>
@@ -1682,6 +1690,7 @@
                   <th class="py-2.5 px-4">CÓDIGO</th>
                   <th class="py-2.5 px-4">DESCRIPCIÓN</th>
                   <th class="py-2.5 px-4">PESO NETO / CAJA</th>
+                  <th class="py-2.5 px-4">INSUMO BODEGA</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[#E2E8E4]">
@@ -1692,6 +1701,7 @@
                     <td class="py-2.5 px-4 font-mono font-bold text-[#157A45]">${pk.code}</td>
                     <td class="py-2.5 px-4 font-bold">${pk.description}</td>
                     <td class="py-2.5 px-4 font-mono font-bold">${pk.netWeightKg.toFixed(1)} kg</td>
+                    <td class="py-2.5 px-4 font-mono text-[#5C6F65]">${pk.linkedSupplyCode || 'INS-001'}</td>
                   </tr>
                 `
                   )
@@ -1818,9 +1828,10 @@
       const code = document.getElementById('cat-emb-code').value.trim().toUpperCase();
       const description = document.getElementById('cat-emb-desc').value.trim();
       const netWeightKg = parseFloat(document.getElementById('cat-emb-weight').value) || 5.0;
+      const linkedSupplyCode = (document.getElementById('cat-emb-supply') && document.getElementById('cat-emb-supply').value) || 'INS-001';
 
-      appState.catalogs.packagingTypes.push({ code, description, netWeightKg });
-      pushAudit('Catálogo embalaje', `${code} · ${description} (${netWeightKg} kg)`);
+      appState.catalogs.packagingTypes.push({ code, description, netWeightKg, linkedSupplyCode });
+      pushAudit('Catálogo embalaje', `${code} · ${description} (${netWeightKg} kg) -> ${linkedSupplyCode}`);
       showToast('Tipo de embalaje guardado', `${description} disponible en Órdenes de Proceso.`, 'success');
       openMasterCatalogModal('packaging');
       render();
@@ -1886,6 +1897,7 @@
       const nextNum = getNextOrderNumber();
       const orderCode = `Orden #${nextNum}`;
       const targetBoxes = pkg.netWeightKg <= 1.5 ? 120 : 96;
+      const primarySupplyCode = pkg.linkedSupplyCode || 'INS-001';
 
       appState.orders.unshift({
         number: nextNum,
@@ -1900,6 +1912,7 @@
         exporter: lot.exporter,
         packagingCode: pkg.code,
         packagingDesc: pkg.description,
+        linkedSupplyCode: primarySupplyCode,
         unitBoxWeightKg: pkg.netWeightKg,
         line,
         market,
@@ -1914,8 +1927,13 @@
       appState.ui.qrCompletedBoxes = targetBoxes;
       appState.ui.mbSelectedOrderCode = orderCode;
 
-      appState.warehouseStock[0].committed += targetBoxes * 4;
-      appState.warehouseStock[1].committed += targetBoxes * 4;
+      const primaryStock = appState.warehouseStock.find((m) => m.code === primarySupplyCode);
+      const mapBagStock = appState.warehouseStock.find((m) => m.name.toLowerCase().includes('map')) || appState.warehouseStock[1];
+
+      if (primaryStock) primaryStock.committed += targetBoxes * 4;
+      if (mapBagStock && mapBagStock.code !== primarySupplyCode) {
+        mapBagStock.committed += targetBoxes * 4;
+      }
 
       pushAudit('Orden de proceso emitida', `${orderCode} · ${lot.id} · ${line} (${market})`);
       showToast('Pauta diaria actualizada', `${orderCode} creada y guardada permanentemente.`, 'success');
@@ -1963,15 +1981,18 @@
       const bagsUsed = boxesUsed;
       const qrRollsUsed = Math.max(1, Math.ceil(boxesUsed / 400));
 
-      const insBoxes = appState.warehouseStock.find((m) => m.code === 'INS-001');
-      const insBags = appState.warehouseStock.find((m) => m.code === 'INS-002');
-      const insRolls = appState.warehouseStock.find((m) => m.code === 'INS-003');
+      const pkgDef = appState.catalogs.packagingTypes.find((p) => p.code === ord.packagingCode);
+      const primaryCode = ord.linkedSupplyCode || (pkgDef && pkgDef.linkedSupplyCode) || 'INS-001';
 
-      if (insBoxes) {
-        insBoxes.physical = Math.max(0, insBoxes.physical - boxesUsed);
-        insBoxes.committed = Math.max(0, insBoxes.committed - boxesUsed);
+      const insPrimary = appState.warehouseStock.find((m) => m.code === primaryCode);
+      const insBags = appState.warehouseStock.find((m) => m.name.toLowerCase().includes('map')) || appState.warehouseStock[1];
+      const insRolls = appState.warehouseStock.find((m) => m.name.toLowerCase().includes('etiqueta')) || appState.warehouseStock[2];
+
+      if (insPrimary) {
+        insPrimary.physical = Math.max(0, insPrimary.physical - boxesUsed);
+        insPrimary.committed = Math.max(0, insPrimary.committed - boxesUsed);
       }
-      if (insBags) {
+      if (insBags && insBags.code !== primaryCode) {
         insBags.physical = Math.max(0, insBags.physical - bagsUsed);
         insBags.committed = Math.max(0, insBags.committed - bagsUsed);
       }
@@ -1980,6 +2001,7 @@
         insRolls.committed = Math.max(0, insRolls.committed - qrRollsUsed);
       }
 
+      const primaryLabel = insPrimary ? insPrimary.name : primaryCode;
       const report = {
         reportId: `RPT-MASAS-${ord.number}`,
         orderCode: ord.code,
@@ -1995,6 +2017,7 @@
         boxesUsed,
         bagsUsed,
         qrRollsUsed,
+        primarySupplyCode: primaryCode,
         closedAt: nowTimeStr(),
       };
 
@@ -2005,20 +2028,20 @@
       appState.warehouseMovements.unshift({
         time: nowTimeStr(),
         type: 'CONSUMO CIERRE',
-        code: 'INS-001 / INS-002',
-        name: `Cajas (${fmtNum(boxesUsed)}) y Bolsas MAP (${fmtNum(bagsUsed)})`,
+        code: `${primaryCode} / ${insBags ? insBags.code : 'INS-002'}`,
+        name: `${primaryLabel} (${fmtNum(boxesUsed)}) y Bolsas MAP (${fmtNum(bagsUsed)})`,
         delta: `−${fmtNum(boxesUsed)} unid.`,
         author: 'Carlos Muñoz',
-        note: `Cierre ${ord.code} · Rendimiento ${yieldPct}%`,
+        note: `Cierre ${ord.code} (${ord.packagingDesc}) · Rendimiento ${yieldPct}%`,
       });
 
       pushAudit(
         'Balance de masas cerrado',
-        `${ord.code} · Rend. ${yieldPct}% · Merma ${shrinkagePct}% · −${fmtNum(boxesUsed)} cajas`
+        `${ord.code} · Rend. ${yieldPct}% · Merma ${shrinkagePct}% · −${fmtNum(boxesUsed)} ${primaryCode}`
       );
       showToast(
         `Orden ${ord.code} cerrada`,
-        `Rendimiento ${yieldPct}% · Inventario de Bodega actualizado y guardado.`,
+        `Rendimiento ${yieldPct}% · ${primaryCode} y Bodega actualizados.`,
         'success'
       );
       render();
@@ -4293,9 +4316,12 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[#E2E8E4] text-xs">
-                  ${appState.orders
-                    .map(
-                      (o) => `
+                  ${
+                    appState.orders.length === 0
+                      ? `<tr><td colspan="6" class="py-8 px-6 text-center text-sm text-[#5C6F65]">No hay órdenes de proceso programadas en la pauta diaria.</td></tr>`
+                      : appState.orders
+                          .map(
+                            (o) => `
                     <tr class="hover:bg-[#F8FAF8]">
                       <td class="py-3.5 px-6 font-mono font-bold text-sm text-[#0E3B25]">${o.code}</td>
                       <td class="py-3.5 px-6">
@@ -4308,8 +4334,9 @@
                       <td class="py-3.5 px-6">${renderStatusBadge(o.status)}</td>
                     </tr>
                   `
-                    )
-                    .join('')}
+                          )
+                          .join('')
+                  }
                 </tbody>
               </table>
             </div>
@@ -6380,7 +6407,10 @@
           <h2 class="text-base font-bold text-[#111C17] border-b border-[#E2E8E4] pb-3 mb-4">
             Lotes ingresados bajo titularidad de ${company}
           </h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          ${
+            myLots.length === 0
+              ? `<div class="p-6 rounded-xl bg-[#F6F8F6] text-center text-sm text-[#5C6F65]">No hay lotes recepcionados bajo titularidad de ${company}.</div>`
+              : `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             ${myLots
               .map(
                 (l) => `
@@ -6394,7 +6424,8 @@
             `
               )
               .join('')}
-          </div>
+          </div>`
+          }
         </section>
       `;
     }
